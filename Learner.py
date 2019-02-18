@@ -68,8 +68,8 @@ class Learner:
         self.val_data = validation_data
         self.shuffle = shuffle
     
-    def fit(self, epoch = 1, lr = 0.01, step_sz = None, val_step_sz = None, 
-            cb = None):
+    def fit(self, epoch = 1, lr = 0.01, decay = None, step_sz = None, 
+            val_step_sz = None, cb = None):
         '''
         
         Default keras fit function:
@@ -85,6 +85,9 @@ class Learner:
         '''
 
 
+        if decay is not None:
+            if hasattr(self.model.optimizer, 'decay'):
+                K.set_value(self.model.optimizer.decay, float(decay))
         if step_sz != None:
             batch_size = None
         else: batch_size = self.bz
@@ -97,7 +100,7 @@ class Learner:
                 callbacks = cb)
     
     def LR_Find(self, start_lr = 1e-7, end_lr = 10, it_num=100, 
-            stop_div = True, wd = None):
+            stop_div = True, decay = None):
         '''
         
         This function aids in finding the best learning rate to start training.
@@ -121,7 +124,7 @@ class Learner:
         
         lr_finder = lr_find(start_lr, end_lr, it_num, stop_div)
         self.model.save_weights('tmp.h5')
-        LR_fit = self.fit(cb = [lr_finder])
+        LR_fit = self.fit(cb = [lr_finder], decay = decay)
         self.model.load_weights('tmp.h5')
 
         #   plot lr vs loss graph
