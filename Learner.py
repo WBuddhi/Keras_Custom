@@ -128,6 +128,7 @@ class Learner:
 
 
 class lr_find(callbacks.Callback):
+
     '''
     
     Callback that aids to pick best learning rate. Progressively increase
@@ -157,10 +158,12 @@ class lr_find(callbacks.Callback):
         self.min_loss = float(0)
         self.logs = defaultdict(list)
         
-        #   Constant for exp progress calculation
-
-        self.k = np.log(self.end_lr/self.start_lr)/self.it_num
-
+        #   Learning rate calculations
+        
+        k = np.log(self.end_lr/self.start_lr)/self.it_num
+        exp_function = lambda x: self.start_lr * np.exp(k * x) 
+        self.lr_range = [exp_function(i) for i in range(100)]
+               
     def on_train_begin(self, logs):
         
         #   Initial Calculations
@@ -177,7 +180,6 @@ class lr_find(callbacks.Callback):
         #   Update values
         #       Current loss
         #       min_loss: min_loss = current_loss when Batch No. = 0
-        #       Learning rate
         #       Logs: loss, lr
         
         if 'loss' in logs: 
@@ -185,11 +187,9 @@ class lr_find(callbacks.Callback):
         else: 
             AttributeError('loss not in log')
         if (batch == 0): self.min_loss = self.current_loss
-        #   self.current_lr = K.get_value(self.model.optimizer.lr)
-        #self.Update_logs(logs)i
 
         if 'loss' in logs:
-            self.logs['loss'].append(logs['loss'])
+            self.logs['loss'].append(self.current_loss)
             self.logs['lr'].append(self.current_lr)    
 
         #   Monitor loss
@@ -204,7 +204,7 @@ class lr_find(callbacks.Callback):
         
         #   Update learning rate
 
-        self.current_lr = self.exp_progress(batch)
+        self.current_lr = self.lr_range[batch]
         K.set_value(self.model.optimizer.lr, self.current_lr)
 
     def on_train_end(self, logs):
@@ -216,19 +216,3 @@ class lr_find(callbacks.Callback):
         #   Plot loss graph
         plt.plot(self.logs['lr'], self.logs['loss'])
         plt.show()
-
-
-    #   Helper Functions for callbacks
-
-
-    def Update_logs(self, logs):
-        #   Updates main function with logs from each step
-        
-        if 'loss' in logs:
-            self.logs['loss'].append(logs['loss'])
-    
-    def exp_progress(self, batch):
-        #   Calculates new learning rate using exponential function. Learning
-        #   rate grows exponentially from start lr to end lr
-
-        return self.start_lr * np.exp(self.k*batch)
