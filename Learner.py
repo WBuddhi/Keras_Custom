@@ -123,7 +123,7 @@ class Learner:
 
 
         lr_finder = lr_find(start_lr, end_lr, it_num, stop_div)
-        self.fit(cb = [lr_finder, callbacks.TensorBoard()], step_sz = 100)
+        self.fit(cb = [lr_finder], step_sz = 100)
         
 
 
@@ -132,7 +132,8 @@ class lr_find(callbacks.Callback):
     
     Callback that aids to pick best learning rate. Progressively increase
     learning rate from start_lr till end_lr and monitors loss till it stops
-    improving
+    improving.
+    Model will be reset after finding best lr
 
     # Arguments
         start_lr: Initial learning rate
@@ -149,40 +150,47 @@ class lr_find(callbacks.Callback):
 
     def __init__(self, start_lr, end_lr, it_num, stop_div):
         
-        self.start_lr = start_lr
-        self.end_lr = end_lr
-        self.it_num = it_num
+        self.start_lr = float(start_lr)
+        self.end_lr = float(end_lr)
+        self.it_num = float(it_num)
         self.stop_div = stop_div
-        self.min_loss = None
+        self.min_loss = float(0)
         self.logs = defaultdict(list)
         
         #   Constant for exp progress calculation
 
-        self.k = float(np.log(float(self.end_lr/self.start_lr))/self.it_num)
+        self.k = np.log(self.end_lr/self.start_lr)/self.it_num
 
     def on_train_begin(self, logs):
         
         #   Initial Calculations
 
-        self.current_lr = float(self.start_lr)
-        K.set_value(self.model.optimizer.lr,self.current_lr)
+        K.set_value(self.model.optimizer.lr,self.start_lr)
+        self.current_lr = self.start_lr
+
+        #   Save initial weights to reset model
+        
+        self.model.save_weights('tmp.h5')
 
     def on_batch_end(self, batch, logs):
 
         #   Update values
         #       Current loss
-        #       min_loss: min_loss = current_loss when Batch No. = 1
+        #       min_loss: min_loss = current_loss when Batch No. = 0
         #       Learning rate
         #       Logs: loss, lr
         
-        if 'loss' in log: 
-            self.current_loss = log['loss']
+        if 'loss' in logs: 
+            self.current_loss = logs['loss']
         else: 
             AttributeError('loss not in log')
-        if (batch == 1): self.min_loss = self.current_loss
-        self.current_lr = K.get_value(self.model.optimizer.lr)
-        self.Update_logs(logs)
-        self.logs['lr'].append(self.current_lr)    
+        if (batch == 0): self.min_loss = self.current_loss
+        #   self.current_lr = K.get_value(self.model.optimizer.lr)
+        #self.Update_logs(logs)i
+
+        if 'loss' in logs:
+            self.logs['loss'].append(logs['loss'])
+            self.logs['lr'].append(self.current_lr)    
 
         #   Monitor loss
         
@@ -196,11 +204,15 @@ class lr_find(callbacks.Callback):
         
         #   Update learning rate
 
-        self.current_lr = float(self.exp_progress(batch))
-        K.set_value(self.model.optimizer.lr, float(self.current_lr))
+        self.current_lr = self.exp_progress(batch)
+        K.set_value(self.model.optimizer.lr, self.current_lr)
 
     def on_train_end(self, logs):
         
+        #   Reset model with initial weights
+
+        self.model.load_weights('tmp.h5')
+
         #   Plot loss graph
         plt.plot(self.logs['lr'], self.logs['loss'])
         plt.show()
@@ -209,15 +221,14 @@ class lr_find(callbacks.Callback):
     #   Helper Functions for callbacks
 
 
-    def Update_logs(self, logs)i:
+    def Update_logs(self, logs):
         #   Updates main function with logs from each step
-
-        for k,v in logs.items():
-            self.logs[k].append(v)
+        
+        if 'loss' in logs:
+            self.logs['loss'].append(logs['loss'])
     
     def exp_progress(self, batch):
         #   Calculates new learning rate using exponential function. Learning
         #   rate grows exponentially from start lr to end lr
 
-        initial_lrate = float(self.start_lr)
-        return initial_lrate * np.exp(self.k*batch)
+        return self.start_lr * np.exp(self.k*batch)
