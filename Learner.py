@@ -53,9 +53,7 @@ class Learner:
             weighted_metrics=None, target_tensor=None, 
             x=None, y=None, batch_size=32, validation_split=0, 
             validation_data=None, shuffle=True):
-
-       
-        #   Initialize model
+        
         self.model = Model
         
         #   Compile model and ready for training
@@ -86,13 +84,13 @@ class Learner:
 
         '''
 
-        
+
         if step_sz != None:
             batch_size = None
         else: batch_size = self.bz
         if step_sz != None and val_step_sz is None: val_step_sz = step_sz
         K.set_value(self.model.optimizer.lr, lr)
-        self.model.fit(x = self.x, y = self.y, epochs = epoch, 
+        return self.model.fit(x = self.x, y = self.y, epochs = epoch, 
                 batch_size = batch_size, validation_split = self.val_split, 
                 validation_data = self.val_data, shuffle = self.shuffle,
                 steps_per_epoch = step_sz, validation_steps = val_step_sz, 
@@ -120,11 +118,17 @@ class Learner:
         https://arxiv.org/abs/1506.01186
        
        '''
-
+        
 
         lr_finder = lr_find(start_lr, end_lr, it_num, stop_div)
+        self.model.save_weights('tmp.h5')
         self.fit(cb = [lr_finder], step_sz = 100)
-        
+        self.model.load_weights('tmp.h5')
+
+        #   plot lr vs loss graph
+
+        plt.plot(lr_finder.logs['lr'], lr_finder.logs['loss'])
+        plt.show()
 
 
 class lr_find(callbacks.Callback):
@@ -164,17 +168,13 @@ class lr_find(callbacks.Callback):
         exp_function = lambda x: self.start_lr * np.exp(k * x) 
         self.lr_range = [exp_function(i) for i in range(100)]
                
+       
     def on_train_begin(self, logs):
-        
-        #   Initial Calculations
+        #   Initialisation
 
         K.set_value(self.model.optimizer.lr,self.start_lr)
         self.current_lr = self.start_lr
-
-        #   Save initial weights to reset model
         
-        self.model.save_weights('tmp.h5')
-
     def on_batch_end(self, batch, logs):
 
         #   Update values
@@ -207,12 +207,4 @@ class lr_find(callbacks.Callback):
         self.current_lr = self.lr_range[batch]
         K.set_value(self.model.optimizer.lr, self.current_lr)
 
-    def on_train_end(self, logs):
         
-        #   Reset model with initial weights
-
-        self.model.load_weights('tmp.h5')
-
-        #   Plot loss graph
-        plt.plot(self.logs['lr'], self.logs['loss'])
-        plt.show()
