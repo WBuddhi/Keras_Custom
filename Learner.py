@@ -97,7 +97,7 @@ class Learner:
                 callbacks = cb)
     
     def LR_Find(self, start_lr = 1e-7, end_lr = 10, it_num=100, 
-            stop_div = True):
+            stop_div = True, wd = None):
         '''
         
         This function aids in finding the best learning rate to start training.
@@ -119,10 +119,9 @@ class Learner:
        
        '''
         
-
         lr_finder = lr_find(start_lr, end_lr, it_num, stop_div)
         self.model.save_weights('tmp.h5')
-        self.fit(cb = [lr_finder], step_sz = 100)
+        LR_fit = self.fit(cb = [lr_finder])
         self.model.load_weights('tmp.h5')
 
         #   plot lr vs loss graph
@@ -199,12 +198,17 @@ class lr_find(callbacks.Callback):
         
         #   Kill training if current learning rate is 4 > than min loss 
         
-        if self.current_loss > (self.min_loss * 4) and self.stop_div :
+        if (batch == len(self.lr_range)) or (
+                self.current_loss > (self.min_loss * 4) and self.stop_div) or ( 
+                np.isnan(self.current_loss)):
             self.model.stop_training = True
-        
-        #   Update learning rate
+        else:
+            #  Update learning rate
+            self.current_lr = self.lr_range[batch]
+            K.set_value(self.model.optimizer.lr, self.current_lr)
 
-        self.current_lr = self.lr_range[batch]
-        K.set_value(self.model.optimizer.lr, self.current_lr)
+    def on_epoch_end(self, epoch, logs):
 
+        #   End training, prevent validation
+        self.model.stop_training = True
         
